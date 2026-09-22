@@ -762,7 +762,7 @@
 
     <div class="warn-box hazard-note" style="display:flex; margin-bottom:18px;">
       <div class="icon">!</div>
-      <div><strong>Indicative only.</strong> These sizes give a rough starting point before a structural engineer is involved &mdash; they are not a substitute for a proper structural check. Calculated using standard domestic load assumptions, a fixed 5m worst-case supported width, and S275 steel bending/deflection checks. Always confirm actual loading, bearing, and buckling with a structural engineer before ordering steel.</div>
+      <div><strong>Indicative only.</strong> These sizes give a rough starting point before a structural engineer is involved &mdash; they are not a substitute for a proper structural check. Calculated using standard domestic load assumptions, the tributary width entered below (5m worst-case by default), and S275 steel bending/deflection checks. Always confirm actual loading, bearing, and buckling with a structural engineer before ordering steel.</div>
     </div>
 
     <div class="panel" id="steelInputPanel">
@@ -778,6 +778,10 @@
         <div class="field">
           <label>Clear span required (m)</label>
           <input type="number" id="steelSpanInput" step="0.1" min="0" placeholder="e.g. 4.0">
+        </div>
+        <div class="field">
+          <label>Tributary width (m) <button class="info-btn" data-tip="steelTributary" aria-label="How do I work this out?">i</button></label>
+          <input type="number" id="steelTributaryInput" step="0.1" min="0" value="5" placeholder="e.g. 5.0, from your drawings">
         </div>
       </div>
     </div>
@@ -856,7 +860,21 @@
         <div class="panel-num">03</div>
         <div class="panel-title" id="stairsComfortPanelTitle">Most comfortable option</div>
       </div>
+      <div class="grid" style="grid-template-columns: 1fr; margin-bottom:14px;">
+        <div class="field">
+          <label>Override number of risers (optional)</label>
+          <input type="number" id="stairsManualRisersInput" step="1" min="1" placeholder="e.g. 14 — leave blank for the automatic pick" style="max-width:280px;">
+        </div>
+      </div>
       <div id="stairsComfortBody"></div>
+      <div class="warn-box" id="stairsComfortWarning" style="display:none; margin-top:14px;">
+        <div class="icon">!</div>
+        <div id="stairsComfortWarningText"></div>
+      </div>
+      <div class="warn-box hazard-note" id="stairsComplianceWarning" style="display:none; margin-top:14px;">
+        <div class="icon">!</div>
+        <div id="stairsComplianceWarningText"></div>
+      </div>
     </div>
 
     <div class="panel" id="stairsWidthPanel">
@@ -1193,6 +1211,7 @@
   <div class="tip-panel" id="tipLintelMasonryHeight"></div>
 
   <div class="tip-panel" id="tipLintelTributary"></div>
+  <div class="tip-panel" id="tipSteelTributary"></div>
 
   <div class="tip-backdrop" id="tipBackdrop"></div>
 
@@ -1578,6 +1597,7 @@ const tipPanels = {
   lintelAdditionalLoad: document.getElementById('tipLintelAdditionalLoad'),
   lintelMasonryHeight: document.getElementById('tipLintelMasonryHeight'),
   lintelTributary: document.getElementById('tipLintelTributary'),
+  steelTributary: document.getElementById('tipSteelTributary'),
 };
 const tipBackdrop = document.getElementById('tipBackdrop');
 
@@ -1620,6 +1640,12 @@ const STANDALONE_TOOLTIPS = {
     <div class="tip-title">Tributary width</div>
     <p class="tip-body">How far the floor or roof structure spans back from this wall into the building &mdash; a real measurement from your drawings, not something this tool can assume for you.</p>
     <p class="tip-body">If the floor/roof spans symmetrically between this wall and a support on the opposite side, tributary width is roughly <strong>half that total span</strong> &mdash; e.g. a 5m span between two walls gives each wall a 2.5m tributary width. If the geometry is asymmetric (this wall much closer to a beam or support than the far side), use the actual distance that load-shares onto this wall instead of a straight half.</p>
+  `,
+  steelTributary: `
+    <div class="tip-title">Tributary width</div>
+    <p class="tip-body">How far the floor or roof structure spans back from this beam on each side that load-shares onto it &mdash; a real measurement from your drawings, not something this tool can assume for you.</p>
+    <p class="tip-body">If the floor/roof spans symmetrically between this beam and a support on the opposite side, tributary width is roughly <strong>half that total span</strong> &mdash; e.g. a floor spanning 5m between this beam and the opposite wall gives a 2.5m tributary width. If the beam picks up load from both sides (e.g. a floor either side of it), add both halves together.</p>
+    <div class="tip-source">Defaults to 5m, a conservative worst-case figure, until you enter your own value.</div>
   `,
 };
 
@@ -1707,7 +1733,7 @@ const STEEL_LOADS = {
   floor: { dead: 0.5, imposed: 1.5 },
 };
 
-const STEEL_TRIBUTARY_WIDTH_M = 5; // conservative worst-case, fixed per user agreement
+const STEEL_TRIBUTARY_WIDTH_DEFAULT_M = 5; // conservative worst-case default, used until the user enters real geometry
 const STEEL_FY = 275;              // N/mm² — S275 steel
 const STEEL_E = 210000;            // N/mm² — Young's modulus
 const STEEL_DEFLECTION_LIMIT = 360; // span/360
@@ -1719,16 +1745,20 @@ const STEEL_SUPPORT_OPTIONS = [
   { key: 'floor_only',    label: '1 floor only',     roofs: 0, floors: 1 },
 ];
 
-let steelState = { support: 'roof_only', span: null };
+let steelState = { support: 'roof_only', span: null, tributaryWidth: STEEL_TRIBUTARY_WIDTH_DEFAULT_M };
 
-function steelLoadsFor(supportKey) {
+function steelLoadsFor(supportKey, tributaryWidthM) {
   const opt = STEEL_SUPPORT_OPTIONS.find(o => o.key === supportKey);
+  const tribWidth = (typeof tributaryWidthM === 'number' && tributaryWidthM > 0)
+    ? tributaryWidthM
+    : STEEL_TRIBUTARY_WIDTH_DEFAULT_M;
   const dead = opt.roofs * STEEL_LOADS.roof.dead + opt.floors * STEEL_LOADS.floor.dead;
   const imposed = opt.roofs * STEEL_LOADS.roof.imposed + opt.floors * STEEL_LOADS.floor.imposed;
-  // per metre run of beam, using the fixed worst-case tributary width
+  // per metre run of beam
   return {
-    deadKNm: dead * STEEL_TRIBUTARY_WIDTH_M,
-    imposedKNm: imposed * STEEL_TRIBUTARY_WIDTH_M,
+    deadKNm: dead * tribWidth,
+    imposedKNm: imposed * tribWidth,
+    tribWidth,
   };
 }
 
@@ -1744,6 +1774,12 @@ function initSteelControls() {
   });
   document.getElementById('steelSpanInput').oninput = (e) => {
     steelState.span = parseFloat(e.target.value);
+    renderSteel();
+  };
+  const tribInput = document.getElementById('steelTributaryInput');
+  tribInput.oninput = (e) => {
+    const val = parseFloat(e.target.value);
+    steelState.tributaryWidth = (val > 0) ? val : STEEL_TRIBUTARY_WIDTH_DEFAULT_M;
     renderSteel();
   };
 }
@@ -1787,12 +1823,12 @@ function steelLoadingDiagramSvg(span, wUls) {
 
 function renderSteel() {
   initSteelControls();
-  const { deadKNm, imposedKNm } = steelLoadsFor(steelState.support);
+  const { deadKNm, imposedKNm, tribWidth } = steelLoadsFor(steelState.support, steelState.tributaryWidth);
   const wUls = 1.35 * deadKNm + 1.5 * imposedKNm;       // factored, for bending
   const wService = deadKNm + imposedKNm;                 // unfactored, for deflection
 
   document.getElementById('steelLoadMeta').textContent =
-    `assumes ${STEEL_TRIBUTARY_WIDTH_M}m supported width · dead ${deadKNm.toFixed(1)} + imposed ${imposedKNm.toFixed(1)} kN/m`;
+    `${tribWidth.toFixed(1)}m supported width · dead ${deadKNm.toFixed(1)} + imposed ${imposedKNm.toFixed(1)} kN/m`;
 
   const span = steelState.span;
   const diagramWUls = span && span > 0 ? wUls : wUls;
@@ -1828,7 +1864,7 @@ function renderSteel() {
   labelEl.textContent = passing.length === 1 ? 'section available' : 'sections available';
 
   if (passing.length === 0) {
-    listEl.innerHTML = `<div class="empty-state">No standard UB up to 356x171x67 satisfies this span/loading combination at the assumed ${STEEL_TRIBUTARY_WIDTH_M}m tributary width.<br>This is beyond the scope of this quick tool — go straight to a structural engineer.</div>`;
+    listEl.innerHTML = `<div class="empty-state">No standard UB up to 356x171x67 satisfies this span/loading combination at the entered ${tribWidth.toFixed(1)}m tributary width.<br>This is beyond the scope of this quick tool — go straight to a structural engineer.</div>`;
     return;
   }
 
@@ -1901,7 +1937,7 @@ const STAIR_CATEGORIES = {
   },
 };
 
-let stairsState = { height: null, type: 'private', loft: false, altTread: false };
+let stairsState = { height: null, type: 'private', loft: false, altTread: false, manualRisers: null };
 
 function getStairCategory() {
   if (stairsState.type === 'private' && stairsState.altTread) return STAIR_CATEGORIES.private_alt_tread;
@@ -1947,6 +1983,11 @@ function initStairsControls() {
 
   document.getElementById('stairsHeightInput').oninput = (e) => {
     stairsState.height = parseFloat(e.target.value);
+    renderStairs();
+  };
+
+  document.getElementById('stairsManualRisersInput').oninput = (e) => {
+    stairsState.manualRisers = e.target.value === '' ? null : parseInt(e.target.value, 10);
     renderStairs();
   };
 }
@@ -1998,6 +2039,41 @@ function findCompactAltTreadStair(height, cat) {
   const twoRPlusG = 2 * rise + going;
   const pitchDeg = Math.atan(rise / going) * 180 / Math.PI;
   return { n, rise, going, twoRPlusG, pitchDeg, deviation: 0, inComfortBand: twoRPlusG >= 550 && twoRPlusG <= 700 };
+}
+
+function computeManualRiserStair(height, cat, n) {
+  const rise = height / n;
+
+  let goingLo = cat.goingMin;
+  const goingHi = cat.goingMax;
+  if (cat.maxPitchDeg) {
+    const goingMinForPitch = rise / Math.tan(cat.maxPitchDeg * Math.PI / 180);
+    goingLo = Math.max(goingLo, goingMinForPitch);
+  }
+  // If the pitch note can't be satisfied at all at this rise, still show the best (min) going
+  // available so the user can see exactly how far out of compliance it is, rather than nothing.
+  const targetGoing = 625 - 2 * rise;
+  const going = Math.min(goingHi, Math.max(Math.min(goingLo, goingHi), targetGoing));
+  const twoRPlusG = 2 * rise + going;
+  const pitchDeg = Math.atan(rise / going) * 180 / Math.PI;
+
+  const riseCompliant = rise >= cat.riseMin && rise <= cat.riseMax;
+  const goingCompliant = going >= cat.goingMin && going <= cat.goingMax;
+  const pitchCompliant = !cat.maxPitchDeg || pitchDeg <= cat.maxPitchDeg + 1e-6;
+  const regsCompliant = riseCompliant && goingCompliant && pitchCompliant;
+  const inComfortBand = twoRPlusG >= 550 && twoRPlusG <= 700;
+
+  return {
+    n, rise, going, twoRPlusG, pitchDeg, deviation: Math.abs(twoRPlusG - 625), inComfortBand,
+    manual: true, riseCompliant, goingCompliant, pitchCompliant, regsCompliant,
+  };
+}
+
+function checkRegsCompliance(result, cat) {
+  const riseCompliant = result.rise >= cat.riseMin && result.rise <= cat.riseMax;
+  const goingCompliant = result.going >= cat.goingMin && result.going <= cat.goingMax;
+  const pitchCompliant = !cat.maxPitchDeg || result.pitchDeg <= cat.maxPitchDeg + 1e-6;
+  return { riseCompliant, goingCompliant, pitchCompliant, regsCompliant: riseCompliant && goingCompliant && pitchCompliant };
 }
 
 function renderStairs() {
@@ -2052,8 +2128,6 @@ function renderStairs() {
     headroomText.textContent = 'Minimum 2.0m headroom required throughout, measured vertically from the pitch line (para 1.11).';
   }
 
-  document.getElementById('stairsComfortPanelTitle').textContent = cat.altTread ? 'Most compact option' : 'Most comfortable option';
-
   // Comfort panel + landings — needs height input
   const comfortBody = document.getElementById('stairsComfortBody');
   const landingWarning = document.getElementById('stairsLandingWarning');
@@ -2063,20 +2137,58 @@ function renderStairs() {
   if (!height || height <= 0) {
     comfortBody.innerHTML = `<div class="empty-state">Enter a floor-to-floor height to calculate.</div>`;
     landingWarning.style.display = 'none';
+    document.getElementById('stairsComfortWarning').style.display = 'none';
+    document.getElementById('stairsComplianceWarning').style.display = 'none';
     return;
   }
 
-  const result = cat.altTread ? findCompactAltTreadStair(height, cat) : findComfortableStair(height, cat);
+  const usingManual = stairsState.manualRisers != null && stairsState.manualRisers >= 1;
+  const result = usingManual
+    ? computeManualRiserStair(height, cat, stairsState.manualRisers)
+    : (cat.altTread ? findCompactAltTreadStair(height, cat) : findComfortableStair(height, cat));
+
   if (!result) {
     comfortBody.innerHTML = `<div class="empty-state">No riser count satisfies this category's rise range for a ${height}mm floor-to-floor height. Check the height or try a different building type.</div>`;
     landingWarning.style.display = 'none';
+    document.getElementById('stairsComfortWarning').style.display = 'none';
+    document.getElementById('stairsComplianceWarning').style.display = 'none';
     return;
+  }
+
+  const compliance = checkRegsCompliance(result, cat);
+
+  document.getElementById('stairsComfortPanelTitle').textContent = usingManual
+    ? `Manual override (${result.n} risers)`
+    : (cat.altTread ? 'Most compact option' : 'Most comfortable option');
+
+  // Comfort (2R+G rule of thumb) warning — informational, not a compliance issue
+  const comfortWarning = document.getElementById('stairsComfortWarning');
+  const comfortWarningText = document.getElementById('stairsComfortWarningText');
+  if (!result.inComfortBand) {
+    comfortWarningText.innerHTML = `2R + G = ${result.twoRPlusG.toFixed(0)}mm — outside the 550&ndash;700mm comfort range. This is a rule-of-thumb guideline, not a Building Regs requirement, so it can still be fully compliant — just a less comfortable stair to use.`;
+    comfortWarning.style.display = 'flex';
+  } else {
+    comfortWarning.style.display = 'none';
+  }
+
+  // Building Regs compliance hazard warning — a genuine non-compliance, distinct from the comfort check above
+  const complianceWarning = document.getElementById('stairsComplianceWarning');
+  const complianceWarningText = document.getElementById('stairsComplianceWarningText');
+  if (!compliance.regsCompliant) {
+    const issues = [];
+    if (!compliance.riseCompliant) issues.push(`rise ${result.rise.toFixed(0)}mm is outside the permitted ${cat.riseMin}&ndash;${cat.riseMax}mm range`);
+    if (!compliance.goingCompliant) issues.push(`going ${result.going.toFixed(0)}mm is outside the permitted ${cat.goingMin}&ndash;${cat.goingMax}mm range`);
+    if (!compliance.pitchCompliant) issues.push(`pitch ${result.pitchDeg.toFixed(1)}&deg; exceeds the ${cat.maxPitchDeg}&deg; maximum`);
+    complianceWarningText.innerHTML = `<strong>Not Building Regs compliant.</strong> ${issues.join('; ')}. This riser count doesn't produce a compliant stair for a ${height}mm floor-to-floor height in this category — change the number of risers or reconsider the approach.`;
+    complianceWarning.style.display = 'flex';
+  } else {
+    complianceWarning.style.display = 'none';
   }
 
   const runLength = result.going * (result.n - 1);
   const comfortBadge = result.inComfortBand
     ? `<span style="color:#57c789;">within comfort range</span>`
-    : `<span style="color:#e0a63e;">outside 550&ndash;700mm comfort range &mdash; still compliant, just less comfortable</span>`;
+    : `<span style="color:#e0a63e;">outside 550&ndash;700mm comfort range</span>`;
   const goingRowLabel = cat.altTread ? 'GOING (ALT. NOSINGS)' : 'GOING';
   const comfortHeuristicNote = cat.altTread
     ? ''
