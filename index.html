@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Mesh Architects App</title>
+<title>Span Calculator</title>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
 
@@ -624,6 +624,80 @@
     margin-top: 3px;
   }
 
+
+  .cost-row{
+    display:grid;
+    grid-template-columns: 1.2fr 90px 150px 200px 100px 32px;
+    gap: 8px;
+    align-items:center;
+    background: var(--panel-2);
+    border: 1px solid var(--line-soft);
+    border-radius: 7px;
+    padding: 8px 10px;
+    margin-bottom: 6px;
+  }
+  .cost-row.other-row{ grid-template-columns: 1.4fr 130px 120px 32px; }
+  .cost-row input[type=number], .cost-row input[type=text], .cost-row select{
+    width:100%;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    color: var(--ink);
+    font-family:'JetBrains Mono', monospace;
+    font-size: 12.5px;
+    font-weight:600;
+    padding: 6px 8px;
+    border-radius: 5px;
+  }
+  .cost-row .row-del{
+    background:transparent; border:none; color: var(--ink-faint);
+    font-size:18px; cursor:pointer;
+  }
+  .cost-row .row-del:hover{ color: var(--danger); }
+  .cost-row label.buf{
+    display:flex; align-items:center; gap:6px;
+    font-family:'JetBrains Mono', monospace; font-size:10.5px; color: var(--ink-faint);
+    cursor:pointer; text-transform:none; letter-spacing:0;
+  }
+  .cost-row label.buf input{ width:auto; }
+  .cost-row .custom-rate-hidden{ visibility:hidden; }
+  .cost-row-head{
+    display:grid;
+    grid-template-columns: 1.2fr 90px 150px 200px 100px 32px;
+    gap: 8px;
+    padding: 0 10px 4px;
+    font-family:'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--ink-faint);
+    text-transform:uppercase;
+    letter-spacing:0.05em;
+    align-items:center;
+  }
+  .cost-row-head .area-head{ display:flex; align-items:center; gap:5px; }
+  @media (max-width: 720px){ .cost-row-head{ display:none; } }
+  .cost-output{
+    white-space: pre-wrap;
+    font-family:'JetBrains Mono', monospace;
+    font-size: 12.5px;
+    line-height: 1.7;
+    color: var(--ink);
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 16px 18px;
+    margin: 0;
+  }
+  .cost-headline{ text-align:center; padding: 6px 0 16px; }
+  .cost-headline .big{
+    font-family:'JetBrains Mono', monospace; font-size: 26px; font-weight:700; color: var(--pass);
+  }
+  .cost-headline .small{
+    font-family:'JetBrains Mono', monospace; font-size: 11px; color: var(--ink-faint);
+    text-transform:uppercase; letter-spacing:0.06em; margin-top:4px;
+  }
+  @media (max-width: 720px){
+    .cost-row, .cost-row.other-row{ grid-template-columns: 1fr 1fr; }
+  }
+
   .footer-note{
     font-family:'JetBrains Mono', monospace;
     font-size: 11px;
@@ -675,6 +749,7 @@
     <button class="cat-tab" data-category="gutters">Gutters</button>
     <button class="cat-tab" data-category="uvalues">U-Values (Part L)</button>
     <button class="cat-tab" data-category="lintels">Lintels</button>
+    <button class="cat-tab" data-category="cost">Cost Estimate</button>
   </div>
 
   <div id="timberSection">
@@ -1198,6 +1273,105 @@
 
   </div><!-- /lintelsSection -->
 
+  <div id="costSection" style="display:none;">
+
+    <div class="panel" id="costProjectBar" style="padding:14px 18px;">
+      <div class="grid" style="grid-template-columns: 2fr auto auto auto; align-items:center; gap:12px;">
+        <div class="field" style="margin:0;">
+          <label>Project name</label>
+          <input type="text" id="costProjectName" placeholder="e.g. 123 Mesh Lane Extension">
+        </div>
+        <button class="row-add-btn" id="costSaveBtn" style="margin-top:18px; padding:9px 14px;">&#128190; Save Project</button>
+        <button class="row-add-btn" id="costLoadBtn" style="margin-top:18px; padding:9px 14px;">&#128194; Load Project</button>
+        <div id="costDirtyIndicator" style="margin-top:18px; font-family:'JetBrains Mono', monospace; font-size:11px; color:var(--ink-faint); min-width:110px;"></div>
+      </div>
+      <input type="file" id="costFileInput" accept=".json" style="display:none;">
+    </div>
+
+    <div class="warn-box hazard-note" style="display:flex; margin-bottom:18px;">
+      <div class="icon">!</div>
+      <div><strong>Indicative only.</strong> A rough budget range for early conversations, built from the &pound;/m&sup2; rates and areas you enter. <strong>Construction costs only</strong> &mdash; it does not include professional fees, planning or building control fees, party wall costs, CIL, or site-specific risks such as ground conditions, beyond the buffer you set. VAT is applied at 20% for extensions and 0% for new build; confirm the VAT treatment of your project (and of separately purchased items such as kitchens) with an accountant.</div>
+    </div>
+
+    <div class="panel" id="costTypePanel">
+      <div class="panel-head">
+        <div class="panel-num">01</div>
+        <div class="panel-title">Project type</div>
+      </div>
+      <div class="grid" style="grid-template-columns: 1fr 1fr;">
+        <div class="field">
+          <label>Type of project</label>
+          <div class="seg" id="costTypeSeg"></div>
+        </div>
+        <div class="field">
+          <label>Buffer range (%)</label>
+          <input type="number" id="costBufferInput" step="1" min="0" max="100" value="10" placeholder="e.g. 10">
+          <div class="band-help">Range = estimate &minus; buffer to estimate + buffer.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel" id="costNewBuildPanel" style="display:none;">
+      <div class="panel-head">
+        <div class="panel-num">02</div>
+        <div class="panel-title">New build</div>
+      </div>
+      <div class="cost-row-head" style="grid-template-columns: 110px 1fr 120px;">
+        <div class="area-head">Area m&sup2; <button class="info-btn" data-tip="costArea" aria-label="External footprint, not GIA">i</button></div>
+        <div>Rate</div>
+        <div>Custom &pound;/m&sup2;</div>
+      </div>
+      <div id="costNewBuildBody"></div>
+    </div>
+
+    <div class="panel" id="costExtensionPanel">
+      <div class="panel-head">
+        <div class="panel-num">02</div>
+        <div class="panel-title">Extension areas</div>
+      </div>
+      <div class="subsection-head">
+        <div class="subsection-title">New, first floor, refurbished and redecorated areas</div>
+        <button class="row-add-btn" id="costAddAreaBtn">+ Add area</button>
+      </div>
+      <div class="cost-row-head">
+        <div>Description</div>
+        <div class="area-head">Area m&sup2; <button class="info-btn" data-tip="costArea" aria-label="External footprint, not GIA">i</button></div>
+        <div>Work type</div>
+        <div>Rate</div>
+        <div>Custom &pound;/m&sup2;</div>
+        <div></div>
+      </div>
+      <div id="costAreasList"></div>
+    </div>
+
+    <div class="panel" id="costOtherPanel">
+      <div class="panel-head">
+        <div class="panel-num">03</div>
+        <div class="panel-title">Other known costs</div>
+      </div>
+      <div class="subsection-head">
+        <div class="subsection-title">Items outside the build rate (&pound;, excluding VAT)</div>
+        <button class="row-add-btn" id="costAddOtherBtn">+ Add cost</button>
+      </div>
+      <div id="costOtherChips" style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px;">
+        <button class="row-copy-btn" data-chip="Kitchen" style="margin-left:0;">+ Kitchen</button>
+        <button class="row-copy-btn" data-chip="Rewiring" style="margin-left:0;">+ Rewiring</button>
+        <button class="row-copy-btn" data-chip="Reroofing" style="margin-left:0;">+ Reroofing</button>
+      </div>
+      <div id="costOtherList"></div>
+    </div>
+
+    <div class="panel" id="costResultPanel">
+      <div class="panel-head">
+        <div class="panel-num">04</div>
+        <div class="panel-title">Estimate</div>
+      </div>
+      <div id="costResultBody"></div>
+    </div>
+
+  </div><!-- /costSection -->
+
+
   <div class="tip-panel" id="tipImposedLoad"></div>
 
   <div class="tip-panel" id="tipDeadLoad"></div>
@@ -1212,6 +1386,7 @@
 
   <div class="tip-panel" id="tipLintelTributary"></div>
   <div class="tip-panel" id="tipSteelTributary"></div>
+  <div class="tip-panel" id="tipCostArea"></div>
 
   <div class="tip-backdrop" id="tipBackdrop"></div>
 
@@ -1598,6 +1773,7 @@ const tipPanels = {
   lintelMasonryHeight: document.getElementById('tipLintelMasonryHeight'),
   lintelTributary: document.getElementById('tipLintelTributary'),
   steelTributary: document.getElementById('tipSteelTributary'),
+  costArea: document.getElementById('tipCostArea'),
 };
 const tipBackdrop = document.getElementById('tipBackdrop');
 
@@ -1640,6 +1816,11 @@ const STANDALONE_TOOLTIPS = {
     <div class="tip-title">Tributary width</div>
     <p class="tip-body">How far the floor or roof structure spans back from this wall into the building &mdash; a real measurement from your drawings, not something this tool can assume for you.</p>
     <p class="tip-body">If the floor/roof spans symmetrically between this wall and a support on the opposite side, tributary width is roughly <strong>half that total span</strong> &mdash; e.g. a 5m span between two walls gives each wall a 2.5m tributary width. If the geometry is asymmetric (this wall much closer to a beam or support than the far side), use the actual distance that load-shares onto this wall instead of a straight half.</p>
+  `,
+  costArea: `
+    <div class="tip-title">Area: external footprint, not GIA</div>
+    <p class="tip-body">Enter areas measured to the <strong>outside face of the external walls</strong> (the external footprint), not the Gross Internal Area (GIA).</p>
+    <p class="tip-body">The &pound;/m&sup2; rates in this tool are applied to the external footprint, so entering a GIA figure will understate the cost by roughly the wall thickness around the perimeter.</p>
   `,
   steelTributary: `
     <div class="tip-title">Tributary width</div>
@@ -1689,12 +1870,14 @@ document.querySelectorAll('.cat-tab').forEach(tab => {
     document.getElementById('guttersSection').style.display = cat === 'gutters' ? '' : 'none';
     document.getElementById('uvaluesSection').style.display = cat === 'uvalues' ? '' : 'none';
     document.getElementById('lintelsSection').style.display = cat === 'lintels' ? '' : 'none';
+    document.getElementById('costSection').style.display = cat === 'cost' ? '' : 'none';
     const sub = document.getElementById('masthead-sub');
     if (cat === 'timber') sub.textContent = 'BS 5268-7.2 · SPAN TABLES FOR SOLID TIMBER MEMBERS';
     else if (cat === 'steel') sub.textContent = 'S275 UB · INDICATIVE BENDING & DEFLECTION CHECK';
     else if (cat === 'stairs') sub.textContent = 'APPROVED DOCUMENT K · STAIR GEOMETRY';
     else if (cat === 'gutters') sub.textContent = 'BS EN 12056-3 · ROOF DRAINAGE (INDICATIVE)';
     else if (cat === 'uvalues') sub.textContent = 'APPROVED DOCUMENT L · NOTIONAL VS PROPOSED U-VALUE';
+    else if (cat === 'cost') sub.textContent = 'COST ESTIMATE · INDICATIVE RANGE, CONSTRUCTION COSTS ONLY';
     else sub.textContent = 'CATNIC LINTEL PRODUCT SELECTOR · FEB 2026';
     document.getElementById('refBadge').style.display = cat === 'timber' ? '' : 'none';
     if (cat === 'steel') renderSteel();
@@ -1702,6 +1885,7 @@ document.querySelectorAll('.cat-tab').forEach(tab => {
     if (cat === 'gutters') renderGutters();
     if (cat === 'uvalues') renderUValues();
     if (cat === 'lintels') renderLintels();
+    if (cat === 'cost') renderCost();
   });
 });
 
@@ -3155,6 +3339,388 @@ render();
 initSteelControls();
 initStairsControls();
 initGuttersControls();
+
+// ============ COST ESTIMATE ============
+// Rates are £ per m². Edit these values to change the dropdown suggestions.
+const COST_RATES = {
+  new:    [ { key: 'low',  label: 'Standard finish', rate: 3250 },
+            { key: 'mid',  label: 'Mid range',       rate: 3500 },
+            { key: 'high', label: 'High level finish', rate: 3750 } ],
+  first:  [ { key: 'low',  label: 'Standard finish', rate: 2000 },
+            { key: 'mid',  label: 'Mid range',       rate: 2250 },
+            { key: 'high', label: 'High level finish', rate: 2500 } ],
+  refurb: [ { key: 'low',  label: 'Standard finish', rate: 900 },
+            { key: 'mid',  label: 'Mid range',       rate: 1000 },
+            { key: 'high', label: 'High level finish', rate: 1100 } ],
+  decor:  [ { key: 'std',  label: 'Standard',        rate: 500 } ],
+};
+const COST_DEFAULT_TIER = { new: 'mid', first: 'mid', refurb: 'mid', decor: 'std' };
+const COST_WORK_LABELS = { new: 'New extension (ground)', first: 'First floor extension', refurb: 'Refurbished', decor: 'Redecorated only' };
+const COST_VAT_RATE = { extension: 0.20, newbuild: 0.0 };
+
+let costIdCounter = 1;
+const costState = {
+  type: 'extension',
+  bufferPct: 10,
+  newbuild: { area: null, tier: 'mid', custom: null },
+  rows: [
+    { id: costIdCounter++, label: 'New extension',   area: null, work: 'new',    tier: 'mid', custom: null },
+    { id: costIdCounter++, label: 'First floor extension', area: null, work: 'first', tier: 'mid', custom: null },
+    { id: costIdCounter++, label: 'Refurbished area', area: null, work: 'refurb', tier: 'mid', custom: null },
+    { id: costIdCounter++, label: 'Redecorated area', area: null, work: 'decor',  tier: 'std', custom: null },
+  ],
+  other: [],
+};
+
+function costRateFor(work, tier, custom) {
+  if (tier === 'custom') return parseFloat(custom) > 0 ? parseFloat(custom) : 0;
+  const band = COST_RATES[work].find(b => b.key === tier);
+  return band ? band.rate : 0;
+}
+
+// Pure calculation (no DOM) so it can be tested directly.
+function costCompute(st) {
+  const bufRaw = parseFloat(st.bufferPct);
+  const b = (isFinite(bufRaw) ? Math.min(Math.max(bufRaw, 0), 100) : 0) / 100;
+  const cats = { new: { area: 0, mid: 0 }, first: { area: 0, mid: 0 }, refurb: { area: 0, mid: 0 }, decor: { area: 0, mid: 0 } };
+
+  if (st.type === 'newbuild') {
+    const a = parseFloat(st.newbuild.area) || 0;
+    if (a > 0) {
+      cats.new.area = a;
+      cats.new.mid = a * costRateFor('new', st.newbuild.tier, st.newbuild.custom);
+    }
+  } else {
+    st.rows.forEach(r => {
+      const a = parseFloat(r.area) || 0;
+      if (a > 0) {
+        cats[r.work].area += a;
+        cats[r.work].mid += a * costRateFor(r.work, r.tier, r.custom);
+      }
+    });
+  }
+  Object.values(cats).forEach(c => { c.low = c.mid * (1 - b); c.high = c.mid * (1 + b); });
+
+  const other = { low: 0, mid: 0, high: 0, count: 0 };
+  st.other.forEach(o => {
+    const amt = parseFloat(o.amount) || 0;
+    if (amt <= 0) return;
+    other.count++;
+    other.mid += amt;
+    other.low += o.buffer ? amt * (1 - b) : amt;
+    other.high += o.buffer ? amt * (1 + b) : amt;
+  });
+
+  const sub = {
+    low:  cats.new.low  + cats.first.low  + cats.refurb.low  + cats.decor.low  + other.low,
+    mid:  cats.new.mid  + cats.first.mid  + cats.refurb.mid  + cats.decor.mid  + other.mid,
+    high: cats.new.high + cats.first.high + cats.refurb.high + cats.decor.high + other.high,
+  };
+  const vatRate = COST_VAT_RATE[st.type];
+  const vat = { low: sub.low * vatRate, mid: sub.mid * vatRate, high: sub.high * vatRate };
+  const total = { low: sub.low + vat.low, mid: sub.mid + vat.mid, high: sub.high + vat.high };
+  return { b, cats, other, sub, vatRate, vat, total };
+}
+
+const costFmt = (n) => '£' + (Math.round(n / 100) * 100).toLocaleString('en-GB');
+const costRange = (o) => `${costFmt(o.low)} – ${costFmt(o.high)}`;
+
+function costBuildText(st, r) {
+  const lines = [];
+  const typeLabel = st.type === 'newbuild' ? 'New build' : 'Extension';
+  lines.push(`COST ESTIMATE – ${typeLabel} (construction costs only)`);
+  if (costProjectName && costProjectName.trim()) lines.push(`Project: ${costProjectName.trim()}`);
+  lines.push(`Range: estimate ±${Math.round(r.b * 100)}%`);
+  lines.push('');
+  const rows = [];
+  const catName = st.type === 'newbuild'
+    ? { new: 'New build', first: 'First floor extension', refurb: 'Refurbishment', decor: 'Redecoration' }
+    : { new: 'New extension', first: 'First floor extension', refurb: 'Refurbishment', decor: 'Redecoration' };
+  ['new', 'first', 'refurb', 'decor'].forEach(k => {
+    const c = r.cats[k];
+    if (c.area > 0) rows.push([`${catName[k]} (${c.area.toFixed(1)} m²)`, costRange(c)]);
+  });
+  if (r.other.count > 0) {
+    rows.push([`Other known costs (${r.other.count})`,
+      r.other.low === r.other.high ? costFmt(r.other.mid) : costRange(r.other)]);
+  }
+  const w = Math.max(...rows.map(x => x[0].length), 24);
+  rows.forEach(x => lines.push(x[0].padEnd(w + 2) + x[1]));
+  lines.push('');
+  lines.push('Subtotal ex VAT'.padEnd(w + 2) + costRange(r.sub));
+  lines.push(`VAT at ${Math.round(r.vatRate * 100)}%`.padEnd(w + 2) + (r.vatRate === 0 ? '£0' : costRange(r.vat)));
+  lines.push('TOTAL INC VAT'.padEnd(w + 2) + costRange(r.total));
+  lines.push('');
+  lines.push('Figures rounded to the nearest £100. Excludes fees, planning, building control and party wall costs.');
+  return lines.join('\n');
+}
+
+function costUpdateOutputs() {
+  const r = costCompute(costState);
+  const body = document.getElementById('costResultBody');
+  if (r.sub.mid <= 0) {
+    body.innerHTML = '<div class="empty-state">Enter an area (or a known cost) to see an estimate.</div>';
+    return;
+  }
+  const text = costBuildText(costState, r);
+  body.innerHTML = `
+    <div class="cost-headline">
+      <div class="big" id="costHeadlineRange">${costRange(r.total)}</div>
+      <div class="small">total inc VAT &middot; mid ${costFmt(r.total.mid)}</div>
+    </div>
+    <pre class="cost-output" id="costOutputText"></pre>
+    <div style="margin-top:10px;"><button class="row-add-btn" id="costCopyBtn">Copy text</button></div>`;
+  document.getElementById('costOutputText').textContent = text;
+  document.getElementById('costCopyBtn').addEventListener('click', (e) => {
+    const btn = e.target;
+    const done = () => { btn.textContent = 'Copied'; setTimeout(() => { btn.textContent = 'Copy text'; }, 1500); };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(done, () => {});
+    } else {
+      const ta = document.createElement('textarea');
+      ta.value = text; document.body.appendChild(ta); ta.select();
+      try { document.execCommand('copy'); done(); } catch (_) {}
+      document.body.removeChild(ta);
+    }
+  });
+}
+
+function costRateOptionsHtml(work, tier) {
+  const opts = COST_RATES[work].map(b =>
+    `<option value="${b.key}" ${b.key === tier ? 'selected' : ''}>${b.label} · £${b.rate.toLocaleString('en-GB')}/m²</option>`);
+  opts.push(`<option value="custom" ${tier === 'custom' ? 'selected' : ''}>Custom rate…</option>`);
+  return opts.join('');
+}
+
+// Rate select + custom input. Select changes are structural (rebuild); typing never rebuilds.
+function costWireRate(div, obj, getWork, rebuild) {
+  const sel = div.querySelector('[data-field="tier"]');
+  const cust = div.querySelector('[data-field="custom"]');
+  sel.addEventListener('change', () => { obj.tier = sel.value; rebuild(); costChanged(); });
+  cust.addEventListener('input', (e) => {
+    obj.custom = e.target.value === '' ? null : parseFloat(e.target.value);
+    costChanged();
+  });
+}
+
+function renderCostNewBuild() {
+  const nb = costState.newbuild;
+  const body = document.getElementById('costNewBuildBody');
+  body.innerHTML = `
+    <div class="cost-row" style="grid-template-columns: 110px 1fr 120px;">
+      <input type="number" step="0.1" min="0" placeholder="Area m²" value="${nb.area ?? ''}" data-field="area">
+      <select data-field="tier">${costRateOptionsHtml('new', nb.tier)}</select>
+      <input type="number" step="10" min="0" placeholder="£/m²" value="${nb.custom ?? ''}" data-field="custom" class="${nb.tier === 'custom' ? '' : 'custom-rate-hidden'}">
+    </div>`;
+  const div = body.querySelector('.cost-row');
+  div.querySelector('[data-field="area"]').addEventListener('input', (e) => {
+    nb.area = e.target.value === '' ? null : parseFloat(e.target.value);
+    costChanged();
+  });
+  costWireRate(div, nb, () => 'new', renderCostNewBuild);
+}
+
+function renderCostAreas() {
+  const list = document.getElementById('costAreasList');
+  list.innerHTML = '';
+  costState.rows.forEach(row => {
+    const div = document.createElement('div');
+    div.className = 'cost-row';
+    div.innerHTML = `
+      <input type="text" placeholder="e.g. Rear kitchen extension" value="${(row.label ?? '').replace(/"/g, '&quot;')}" data-field="label">
+      <input type="number" step="0.1" min="0" placeholder="Area m²" value="${row.area ?? ''}" data-field="area">
+      <select data-field="work">${Object.keys(COST_WORK_LABELS).map(k =>
+        `<option value="${k}" ${k === row.work ? 'selected' : ''}>${COST_WORK_LABELS[k]}</option>`).join('')}</select>
+      <select data-field="tier">${costRateOptionsHtml(row.work, row.tier)}</select>
+      <input type="number" step="10" min="0" placeholder="£/m²" value="${row.custom ?? ''}" data-field="custom" class="${row.tier === 'custom' ? '' : 'custom-rate-hidden'}">
+      <button class="row-del" data-del="1">&times;</button>`;
+    div.querySelector('[data-field="label"]').addEventListener('input', (e) => { row.label = e.target.value; markCostDirty(); });
+    div.querySelector('[data-field="area"]').addEventListener('input', (e) => {
+      row.area = e.target.value === '' ? null : parseFloat(e.target.value);
+      costChanged();
+    });
+    div.querySelector('[data-field="work"]').addEventListener('change', (e) => {
+      row.work = e.target.value;
+      row.tier = COST_DEFAULT_TIER[row.work];
+      row.custom = null;
+      renderCostAreas();
+      costChanged();
+    });
+    costWireRate(div, row, () => row.work, renderCostAreas);
+    div.querySelector('[data-del]').addEventListener('click', () => {
+      costState.rows = costState.rows.filter(r => r.id !== row.id);
+      renderCostAreas();
+      costChanged();
+    });
+    list.appendChild(div);
+  });
+}
+
+function renderCostOther() {
+  const list = document.getElementById('costOtherList');
+  list.innerHTML = '';
+  if (!costState.other.length) {
+    list.innerHTML = '<div class="band-help" style="margin:0 0 6px;">None added. Use this for items you already have a price for.</div>';
+  }
+  costState.other.forEach(row => {
+    const div = document.createElement('div');
+    div.className = 'cost-row other-row';
+    div.innerHTML = `
+      <input type="text" placeholder="e.g. Kitchen supply" value="${(row.label ?? '').replace(/"/g, '&quot;')}" data-field="label">
+      <input type="number" step="50" min="0" placeholder="£ ex VAT" value="${row.amount ?? ''}" data-field="amount">
+      <label class="buf"><input type="checkbox" data-field="buffer" ${row.buffer ? 'checked' : ''}> apply buffer</label>
+      <button class="row-del" data-del="1">&times;</button>`;
+    div.querySelector('[data-field="label"]').addEventListener('input', (e) => { row.label = e.target.value; markCostDirty(); });
+    div.querySelector('[data-field="amount"]').addEventListener('input', (e) => {
+      row.amount = e.target.value === '' ? null : parseFloat(e.target.value);
+      costChanged();
+    });
+    div.querySelector('[data-field="buffer"]').addEventListener('change', (e) => {
+      row.buffer = e.target.checked;
+      costChanged();
+    });
+    div.querySelector('[data-del]').addEventListener('click', () => {
+      costState.other = costState.other.filter(r => r.id !== row.id);
+      renderCostOther();
+      costChanged();
+    });
+    list.appendChild(div);
+  });
+}
+
+let costWired = false;
+function renderCost() {
+  if (!costWired) {
+    costWired = true;
+    document.getElementById('costBufferInput').addEventListener('input', (e) => {
+      costState.bufferPct = e.target.value === '' ? 0 : parseFloat(e.target.value);
+      costChanged();
+    });
+    document.getElementById('costAddAreaBtn').addEventListener('click', () => {
+      costState.rows.push({ id: costIdCounter++, label: '', area: null, work: 'new', tier: 'mid', custom: null });
+      markCostDirty();
+      renderCostAreas();
+    });
+    document.getElementById('costAddOtherBtn').addEventListener('click', () => {
+      costState.other.push({ id: costIdCounter++, label: '', amount: null, buffer: false });
+      markCostDirty();
+      renderCostOther();
+    });
+    document.querySelectorAll('#costOtherChips [data-chip]').forEach(chip => {
+      chip.addEventListener('click', () => {
+        costState.other.push({ id: costIdCounter++, label: chip.dataset.chip, amount: null, buffer: false });
+        markCostDirty();
+        renderCostOther();
+      });
+    });
+    wireCostProjectBar();
+  }
+  document.getElementById('costBufferInput').value = costState.bufferPct;
+  document.getElementById('costProjectName').value = costProjectName;
+  const seg = document.getElementById('costTypeSeg');
+  seg.innerHTML = '';
+  [['extension', 'Extension'], ['newbuild', 'New build']].forEach(([key, label]) => {
+    const btn = document.createElement('button');
+    btn.textContent = label;
+    if (costState.type === key) btn.classList.add('active');
+    btn.onclick = () => { costState.type = key; markCostDirty(); renderCost(); };
+    seg.appendChild(btn);
+  });
+  const isNew = costState.type === 'newbuild';
+  document.getElementById('costNewBuildPanel').style.display = isNew ? '' : 'none';
+  document.getElementById('costExtensionPanel').style.display = isNew ? 'none' : '';
+  if (isNew) renderCostNewBuild(); else renderCostAreas();
+  renderCostOther();
+  costUpdateOutputs();
+}
+
+// ---- Save / load (same pattern as U-Values) ----
+let costProjectName = '';
+let costDirty = false;
+function markCostDirty() { costDirty = true; updateCostDirtyIndicator(); }
+function updateCostDirtyIndicator() {
+  const el = document.getElementById('costDirtyIndicator');
+  if (!el) return;
+  el.textContent = costDirty ? '\u25CF Unsaved changes' : '';
+  el.style.color = costDirty ? '#e0a63e' : 'var(--ink-faint)';
+}
+function costChanged() { markCostDirty(); costUpdateOutputs(); }
+
+function costSanitizeFilename(name) {
+  const base = (name && name.trim()) ? name.trim() : 'cost-estimate';
+  return base.replace(/[^a-z0-9\-_ ]/gi, '').replace(/\s+/g, '-').slice(0, 80) || 'cost-estimate';
+}
+
+function saveCostProject() {
+  const payload = {
+    app: 'mesh-cost',
+    version: 1,
+    projectName: costProjectName,
+    savedAt: new Date().toISOString(),
+    state: costState,
+  };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = costSanitizeFilename(costProjectName) + '-cost.json';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  costDirty = false;
+  updateCostDirtyIndicator();
+  URL.revokeObjectURL(url);
+}
+
+// Validates and normalises loaded state so a bad/old file can't break the tab.
+function costApplyLoadedState(st) {
+  const validTier = (work, tier) => tier === 'custom' || COST_RATES[work].some(b => b.key === tier);
+  const num = (v) => (v === null || v === undefined || v === '' || !isFinite(parseFloat(v))) ? null : parseFloat(v);
+  costState.type = st.type === 'newbuild' ? 'newbuild' : 'extension';
+  costState.bufferPct = isFinite(parseFloat(st.bufferPct)) ? parseFloat(st.bufferPct) : 10;
+  const nb = st.newbuild || {};
+  costState.newbuild = { area: num(nb.area), tier: validTier('new', nb.tier) ? nb.tier : 'mid', custom: num(nb.custom) };
+  costState.rows = (Array.isArray(st.rows) ? st.rows : [])
+    .filter(r => r && COST_RATES[r.work])
+    .map(r => ({
+      id: costIdCounter++, label: String(r.label ?? ''), area: num(r.area), work: r.work,
+      tier: validTier(r.work, r.tier) ? r.tier : COST_DEFAULT_TIER[r.work], custom: num(r.custom),
+    }));
+  costState.other = (Array.isArray(st.other) ? st.other : [])
+    .filter(o => o)
+    .map(o => ({ id: costIdCounter++, label: String(o.label ?? ''), amount: num(o.amount), buffer: !!o.buffer }));
+}
+
+function loadCostProjectFromFile(file) {
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    let data;
+    try { data = JSON.parse(e.target.result); }
+    catch (err) { alert('Could not read this file \u2014 it doesn\'t look like a valid saved project (invalid JSON).'); return; }
+    if (!data || data.app !== 'mesh-cost' || !data.state) {
+      alert('This file doesn\'t look like a Mesh Cost Estimate project file.');
+      return;
+    }
+    costApplyLoadedState(data.state);
+    costProjectName = data.projectName || '';
+    renderCost();
+    costDirty = false;
+    updateCostDirtyIndicator();
+  };
+  reader.readAsText(file);
+}
+
+function wireCostProjectBar() {
+  document.getElementById('costProjectName').oninput = (e) => { costProjectName = e.target.value; markCostDirty(); costUpdateOutputs(); };
+  document.getElementById('costSaveBtn').onclick = saveCostProject;
+  const fileInput = document.getElementById('costFileInput');
+  document.getElementById('costLoadBtn').onclick = () => {
+    if (costDirty && !confirm('You have unsaved changes that will be lost. Load a different project anyway?')) return;
+    fileInput.value = '';
+    fileInput.click();
+  };
+  fileInput.onchange = (e) => { if (e.target.files && e.target.files[0]) loadCostProjectFromFile(e.target.files[0]); };
+}
 </script>
 </body>
 </html>
